@@ -16,7 +16,7 @@ class LeNet(nn.Module):
             nn.AvgPool2d(kernel_size=2, stride=2),
         )
         self.classifier = nn.Sequential(
-            nn.Linear(16 * 6 * 6, 120),
+            nn.Linear(16 * 8 * 8, 120), # bug: not 16*6*6 for 32x32 input
             nn.Sigmoid(),
             nn.Linear(120, 84),
             nn.Sigmoid(),

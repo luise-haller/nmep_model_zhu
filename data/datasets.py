@@ -41,16 +41,23 @@ class MediumImagenetHDF5Dataset(Dataset):
     def _get_transforms(self):
         transform = []
         transform.append(lambda x: torch.tensor(x / 256).to(torch.float))
-        normalization = torch.Tensor([[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]])
-        transform.append(transforms.Normalize(normalization[0], normalization[1]))
-        transform.append(transforms.Resize([self.input_size] * 2))
-        if self.split == "train" and self.augment:
+        if self.split == "train" and self.augment: # bug: need to augment before normalization
             transform.extend(
                 [
                     transforms.RandomHorizontalFlip(),
                     transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
                 ]
             )
+        normalization = torch.Tensor([[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]])
+        transform.append(transforms.Normalize(normalization[0], normalization[1]))
+        transform.append(transforms.Resize([self.input_size] * 2))
+        # if self.split == "train" and self.augment:
+        #     transform.extend(
+        #         [
+        #             transforms.RandomHorizontalFlip(),
+        #             transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
+        #         ]
+        #     )
         return transforms.Compose(transform)
 
 

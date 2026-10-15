@@ -25,7 +25,7 @@ base_config.DATA.BATCH_SIZE = 128
 # Path to dataset, could be overwritten by command line argument
 base_config.DATA.DATA_PATH = ""
 # Dataset name
-base_config.DATA.DATASET = "cifar"
+base_config.DATA.DATASET = "cifar10"
 # Input image size
 base_config.DATA.IMG_SIZE = 224
 # Interpolation to resize image (random, bilinear, bicubic)
@@ -60,8 +60,9 @@ base_config.TRAIN.START_EPOCH = 0
 base_config.TRAIN.EPOCHS = 300
 base_config.TRAIN.WARMUP_EPOCHS = 20
 base_config.TRAIN.LR = 5e-4
-base_config.TRAIN.MIN_LR = 5e-4
-base_config.TRAIN.WARMUP_LR = 5e-4
+base_config.TRAIN.MIN_LR = 5e-6
+base_config.TRAIN.WARMUP_LR = 5e-7
+base_config.TRAIN.WEIGHT_DECAY = 0.05
 
 # Gradient accumulation steps
 # could be overwritten by command line argument

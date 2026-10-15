@@ -32,7 +32,7 @@ def parse_option():
     parser.add_argument("--resume", help="resume from checkpoint")
     parser.add_argument(
         "--output",
-        default="output",
+        default=None,
         type=str,
         metavar="PATH",
         help="root of output folder, the full path is <output>/<model_name>/<tag> (default: output)",
@@ -51,7 +51,7 @@ def main(config):
     dataset_train, dataset_val, dataset_test, data_loader_train, data_loader_val, data_loader_test = build_loader(
         config
     )
-    device = "cpu"
+    device = "cuda" # bug: not cpu
     model = build_model(config)
     # logger.info(str(model))
 
@@ -87,6 +87,7 @@ def main(config):
     start_time = time.time()
     for epoch in range(config.TRAIN.START_EPOCH, config.TRAIN.EPOCHS):
         train_acc1, train_loss = train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch)
+        lr_scheduler.step() # bug: forgot to add this after training one epoch
         logger.info(f" * Train Acc {train_acc1:.3f} Train Loss {train_loss:.3f}")
         logger.info(f"Accuracy of the network on the {len(dataset_train)} train images: {train_acc1:.1f}%")
 
@@ -95,9 +96,9 @@ def main(config):
         logger.info(f" * Val Acc {val_acc1:.3f} Val Loss {val_loss:.3f}")
         logger.info(f"Accuracy of the network on the {len(dataset_val)} val images: {val_acc1:.1f}%")
 
-        if epoch % config.SAVE_FREQ == 0 or epoch == (config.TRAIN.EPOCHS - 1):
+        if val_acc1 > max_accuracy:
             save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger)
-
+        
         max_accuracy = max(max_accuracy, val_acc1)
         logger.info(f"Max accuracy: {max_accuracy:.2f}%\n")
 
