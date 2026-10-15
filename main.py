@@ -5,6 +5,9 @@ import os
 import shutil
 import time
 
+import wandb
+import yaml
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -68,6 +71,13 @@ def main(config):
     logger.info(flop_count_str(flops))
     logger.info('number of params: {} M'.format(n_parameters / 1e6))
     logger.info(f'flops: {n_flops/1e6} MFLOPS')
+    wandb.init(
+        entity="luiseh-university-of-california-berkeley",
+        project="nmep-hw3",
+        name=os.path.relpath(config.OUTPUT, "output"),
+        config=yaml.safe_load(config.dump()),      
+        tags=[config.MODEL.NAME, config.DATA.DATASET],
+    )
 
     # Keep it simple with basic epoch scheduler
     optimizer = build_optimizer(config, model)
@@ -86,7 +96,10 @@ def main(config):
     logger.info("Start training")
     start_time = time.time()
     for epoch in range(config.TRAIN.START_EPOCH, config.TRAIN.EPOCHS):
+        epoch_start = time.time()
         train_acc1, train_loss = train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch)
+        epoch_time = time.time() - epoch_start
+        current_lr = optimizer.param_groups[0]["lr"]
         lr_scheduler.step() # bug: forgot to add this after training one epoch
         logger.info(f" * Train Acc {train_acc1:.3f} Train Loss {train_loss:.3f}")
         logger.info(f"Accuracy of the network on the {len(dataset_train)} train images: {train_acc1:.1f}%")
@@ -97,7 +110,7 @@ def main(config):
         logger.info(f"Accuracy of the network on the {len(dataset_val)} val images: {val_acc1:.1f}%")
 
         if val_acc1 > max_accuracy:
-            save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger)
+            save_checkpoint(config, epoch, model, val_acc1, optimizer, lr_scheduler, logger)
         
         max_accuracy = max(max_accuracy, val_acc1)
         logger.info(f"Max accuracy: {max_accuracy:.2f}%\n")
@@ -110,14 +123,27 @@ def main(config):
                 os.path.join(config.OUTPUT, "metrics.json"), mode="a", encoding="utf-8"
             ) as f:
                 f.write(json.dumps(log_stats) + "\n")
+        
+        wandb.log({
+            "epoch": epoch,
+            "train/acc": train_acc1,
+            "train/loss": train_loss,
+            "val/acc": val_acc1,
+            "val/loss": val_loss,
+            "lr": current_lr,
+            "epoch_time_s": epoch_time,
+            "throughput_img_per_s": len(dataset_train) / epoch_time,
+        }, step=epoch)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info("Training time {}".format(total_time_str))
+    wandb.summary["total_train_time_s"] = total_time
 
     logger.info("Start testing")
     preds = evaluate(config, data_loader_test, model)
     np.save(os.path.join(config.OUTPUT, "preds.npy"), preds)
+    wandb.finish()
 
 
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch):
