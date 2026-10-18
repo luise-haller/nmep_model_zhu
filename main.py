@@ -62,6 +62,7 @@ def main(config):
 
     # param and flop counts
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
     toy_input = torch.rand(1, 3, config.DATA.IMG_SIZE, config.DATA.IMG_SIZE).to(device) # for measuring flops
     flops = FlopCountAnalysis(model, toy_input)
     del toy_input
@@ -71,6 +72,7 @@ def main(config):
     logger.info(flop_count_str(flops))
     logger.info('number of params: {} M'.format(n_parameters / 1e6))
     logger.info(f'flops: {n_flops/1e6} MFLOPS')
+    
     wandb.init(
         entity="luiseh-university-of-california-berkeley",
         project="nmep-hw3",
@@ -145,7 +147,7 @@ def main(config):
     np.save(os.path.join(config.OUTPUT, "preds.npy"), preds)
     wandb.finish()
 
-
+# import matplotlib.pyplot as plt
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch):
     model.train()
 
@@ -156,11 +158,19 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch):
 
     start = time.time()
     end = time.time()
-    for idx, (samples, targets) in enumerate(tqdm(data_loader, leave=False)):
-        samples = samples.cuda(non_blocking=True)
+    for idx, (samples, targets) in enumerate(tqdm(data_loader, leave=False)): 
+        '''
+        img = samples[0]
+        plt.imshow(img.permute(1, 2, 0))
+        plt.axis('off')
+        plt.savefig('cifar10_sample.png', bbox_inches='tight')
+        plt.close()
+        '''
         targets = targets.cuda(non_blocking=True)
 
         optimizer.zero_grad()
+        samples = samples.to("cuda")
+        logger.info(f"samples device {samples.device} model device {next(model.parameters()).device}")
         outputs = model(samples)
 
         loss = criterion(outputs, targets)
