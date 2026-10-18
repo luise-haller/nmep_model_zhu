@@ -5,7 +5,7 @@ from data.datasets import CIFAR10Dataset, MediumImagenetHDF5Dataset
 
 def build_loader(config):
     if config.DATA.DATASET == "cifar10":
-        dataset_train = CIFAR10Dataset(img_size=config.DATA.IMG_SIZE, train=True)
+        dataset_train = CIFAR10Dataset(img_size=config.DATA.IMG_SIZE, train=True, aug_scheme=config.AUG.SCHEME)
         dataset_val = CIFAR10Dataset(img_size=config.DATA.IMG_SIZE, train=False)
         dataset_test = CIFAR10Dataset(img_size=config.DATA.IMG_SIZE, train=False)
     elif config.DATA.DATASET == "medium_imagenet":

@@ -90,6 +90,7 @@ base_config.AUG = CN()
 base_config.AUG.COLOR_JITTER = 0.4
 # Use AutoAugment policy. "v0" or "original"
 base_config.AUG.RAND_AUGMENT = "rand-m9-mstd0.5-inc1"
+base_config.AUG.SCHEME = 'baseline'
 
 # -----------------------------------------------------------------------------
 # Testing settings
@@ -114,6 +115,8 @@ base_config.PRINT_FREQ = 10
 base_config.SEED = 0
 # Perform evaluation only, overwritten by command line argument
 base_config.EVAL_MODE = False
+
+base_config.SAVE_CKPT = True
 
 
 def _update_config_from_file(config, cfg_file):

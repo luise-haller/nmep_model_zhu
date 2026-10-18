@@ -78,6 +78,10 @@ def main(config):
         config=yaml.safe_load(config.dump()),      
         tags=[config.MODEL.NAME, config.DATA.DATASET],
     )
+    wandb.define_metric("val/acc", summary="max")
+    wandb.define_metric("val/loss", summary="min")
+    wandb.define_metric("throughput_per_s", summary="mean")
+    wandb.define_metric("epoch_time_s", summary="mean")
 
     # Keep it simple with basic epoch scheduler
     optimizer = build_optimizer(config, model)
@@ -109,7 +113,7 @@ def main(config):
         logger.info(f" * Val Acc {val_acc1:.3f} Val Loss {val_loss:.3f}")
         logger.info(f"Accuracy of the network on the {len(dataset_val)} val images: {val_acc1:.1f}%")
 
-        if val_acc1 > max_accuracy:
+        if config.SAVE_CKPT and val_acc1 > max_accuracy:
             save_checkpoint(config, epoch, model, val_acc1, optimizer, lr_scheduler, logger)
         
         max_accuracy = max(max_accuracy, val_acc1)

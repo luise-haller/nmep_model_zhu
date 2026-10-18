@@ -62,9 +62,10 @@ class MediumImagenetHDF5Dataset(Dataset):
 
 
 class CIFAR10Dataset(Dataset):
-    def __init__(self, img_size=32, train=True):
+    def __init__(self, img_size=32, train=True, aug_scheme="baseline"):
         self.train = train
         self.img_size = img_size
+        self.aug_scheme = aug_scheme
 
         self.transform = self._get_transforms()
         self.dataset = CIFAR10(root="/data/nmep/cv/cifar10", train=self.train, download=True)
@@ -78,18 +79,33 @@ class CIFAR10Dataset(Dataset):
         return len(self.dataset)
 
     def _get_transforms(self):
-        if self.train:
-            transform = [
+        normalize = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        resize = transforms.Resize([self.img_size] * 2)
+
+        # No aug on val set
+        if not self.train:
+            return transforms.Compose([transforms.ToTensor(), normalize, resize])
+        # Aug on train set
+        if self.aug_scheme == "baseline":
+            pil_aug = [
                 transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
                 transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-                transforms.Resize([self.img_size] * 2),
             ]
+            tensor_aug = []
+        elif self.aug_scheme == "crop_erase":
+            pil_aug = [
+                transforms.RandomCrop(32, padding=4, padding_mode="reflect"),
+                transforms.RandomHorizontalFlip(),
+            ]
+            tensor_aug = [transforms.RandomErasing(p=0.5, scale=(0.02, 0.2))]
+        elif self.aug_scheme == "trivialaugment":
+            pil_aug = [
+                transforms.TrivialAugmentWide(),
+                transforms.RandomHorizontalFlip(),
+            ]
+            tensor_aug = []
         else:
-            transform = [
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-                transforms.Resize([self.img_size] * 2),
-            ]
-        return transforms.Compose(transform)
+            raise NotImplementedError(f"Unknown augmentation scheme: {self.aug_scheme}")
+
+        # PIL augmentation -> tensor -> normalize -> resize -> tensor augmentation
+        return transforms.Compose(pil_aug + [transforms.ToTensor(), normalize, resize] + tensor_aug)
