@@ -160,8 +160,11 @@ def main(config):
     logger.info("Start testing")
 
     # load the best model for evaluation
-    model.load_state_dict(torch.load(f"{config.OUTPUT}/{config.MODEL.NAME}/ckpt_best.pth", weights_only=True))
-    preds = evaluate(config, data_loader_test, model)
+    ckpt_path = os.path.join(config.OUTPUT, "ckpt_best.pth")
+    checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
+    model.load_state_dict(checkpoint["model"])
+
+    preds = evaluate(config, data_loader_test, model)   
     np.save(os.path.join(config.OUTPUT, "preds.npy"), preds)
     wandb.finish()
 

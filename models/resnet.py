@@ -12,117 +12,40 @@ import torch
 
 class ResNetBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
-        """
-        Create a residual block for our ResNet18 architecture.
-
-        Here is the expected network structure:
-        - conv layer with
-            out_channels=out_channels, 3x3 kernel, stride=stride
-        - batchnorm layer (Batchnorm2D)
-        - conv layer with
-            out_channels=out_channels, 3x3 kernel, stride=1
-        - batchnorm layer (Batchnorm2D)
-        - shortcut layer:
-            if either the stride is not 1 or the out_channels is not equal to in_channels:
-                the shortcut layer is composed of two steps:
-                - conv layer with
-                    in_channels=in_channels, out_channels=out_channels, 1x1 kernel, stride=stride
-                - batchnorm layer (Batchnorm2D)
-            else:
-                the shortcut layer should be an no-op
-
-        All conv layers will have a padding of 1 and no bias term. To facilitate this, consider using
-        the provided conv() helper function.
-        When performing a forward pass, the ReLU activation should be applied after the first batchnorm layer
-        and after the second batchnorm gets added to the shortcut.
-        """
-        ## YOUR CODE HERE
-
-        ## Initialize the block with a call to super and make your conv and batchnorm layers.
         super(ResNetBlock, self).__init__()
-        # TODO: Initialize conv and batch norm layers with the correct parameters
-        self.conv1 = nn.Conv2d(
-            in_channels = in_channels,
-            out_channels = out_channels,
-            kernel_size = 3,
-            stride = stride,
-            padding = 1,
-            bias = False
-        )
-        self.bn1 = nn.BatchNorm2d(num_features = out_channels)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3,
+                               stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
 
-        self.conv2 = nn.Conv2d(
-            in_channels = out_channels,
-            out_channels = out_channels,
-            kernel_size = 3,
-            stride = 1,
-            padding = 1,
-            bias = False
-        )
-        self.bn2 = nn.BatchNorm2d(num_features = out_channels)
-        ## Use some conditional logic when defining your shortcut layer
-        ## For a no-op layer, consider creating an empty nn.Sequential()
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3,
+                               stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
         self.shortcut = nn.Sequential()
-        # TODO: Code here to initialize the shortcut layer
         if stride != 1 or out_channels != in_channels:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(
-                    in_channels=in_channels, 
-                    out_channels=out_channels,
-                    kernel_size = 1,
-                    stride=stride,
-                    bias=False
-                ),
-                nn.BatchNorm2d(
-                    num_features=out_channels
-                )
+                nn.Conv2d(in_channels, out_channels, kernel_size=1,
+                          stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels),
             )
 
         self.relu = nn.ReLU()
-        ## END YOUR CODE
 
     def forward(self, x):
-        """
-        Compute a forward pass of this batch of data on this residual block.
-
-        x: batch of images of shape (batch_size, num_channels, width, height)
-        returns: result of passing x through this block
-        """
-        ## YOUR CODE HERE
-        x_skip = x # save a copy of the original x for skip connections
-        ## TODO: Call the first convolution, batchnorm, and activation
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-
-        ## TODO: Call the second convolution and batchnorm
-        x = self.conv2(x)
-        x = self.bn2(x)
-
-        ## TODO: Also call the shortcut layer on the original input
+        x_skip = x
+        x = self.relu(self.bn1(self.conv1(x)))
+        x = self.bn2(self.conv2(x))
         x_skip = self.shortcut(x_skip)
-
-        ## TODO: Sum the result of the shortcut and the result of the second batchnorm
-        ## and apply your activation
         x = self.relu(x + x_skip)
-
-        # return out
         return x
-        ## END YOUR CODE
 
 
 class ResNet18(nn.Module):
     def __init__(self, num_classes=200):
-        # Read the following, and uncomment it when you understand it, no need to add more code
-        num_classes = num_classes
         super(ResNet18, self).__init__()
         self.in_channels = 64
-        self.conv1 = nn.Conv2d(in_channels=3,
-                                out_channels=64,
-                                kernel_size=3,
-                                stride=1,
-                                padding=1,
-                                bias=False)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3,
+                               stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.layer1 = self.make_block(out_channels=64, stride=1)
         self.layer2 = self.make_block(out_channels=128, stride=2)
@@ -131,15 +54,101 @@ class ResNet18(nn.Module):
         self.linear = nn.Linear(512, num_classes)
 
     def make_block(self, out_channels, stride):
-        # Read the following, and uncomment it when you understand it, no need to add more code
         layers = []
         for stride in [stride, 1]:
-             layers.append(ResNetBlock(self.in_channels, out_channels, stride))
-             self.in_channels = out_channels
+            layers.append(ResNetBlock(self.in_channels, out_channels, stride))
+            self.in_channels = out_channels
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        # Read the following, and uncomment it when you understand it, no need to add more code
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = F.adaptive_avg_pool2d(x, 1)
+        x = torch.flatten(x, 1)
+        x = self.linear(x)
+        return x
+
+
+class BottleneckBlock(nn.Module):
+    """
+    Bottleneck residual block used by ResNet50/101/152.
+
+    Structure:
+    - 1x1 conv: in_channels -> mid_channels (reduce)
+    - batchnorm, ReLU
+    - 3x3 conv: mid_channels -> mid_channels, stride=stride, padding=1
+    - batchnorm, ReLU
+    - 1x1 conv: mid_channels -> mid_channels * expansion (expand)
+    - batchnorm
+    - add shortcut, then ReLU
+
+    The shortcut is a 1x1 conv + batchnorm when the spatial size or channel
+    count changes, otherwise an identity (no-op).
+    """
+    expansion = 4
+
+    def __init__(self, in_channels, mid_channels, stride=1):
+        super(BottleneckBlock, self).__init__()
+        out_channels = mid_channels * self.expansion
+
+        self.conv1 = nn.Conv2d(in_channels, mid_channels, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(mid_channels)
+
+        self.conv2 = nn.Conv2d(mid_channels, mid_channels, kernel_size=3,
+                               stride=stride, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(mid_channels)
+
+        self.conv3 = nn.Conv2d(mid_channels, out_channels, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_channels)
+
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1,
+                          stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels),
+            )
+
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x_skip = x
+        x = self.relu(self.bn1(self.conv1(x)))
+        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.bn3(self.conv3(x))
+        x_skip = self.shortcut(x_skip)
+        x = self.relu(x + x_skip)
+        return x
+
+
+class ResNet50(nn.Module):
+    def __init__(self, num_classes=200):
+        super(ResNet50, self).__init__()
+        self.in_channels = 64
+        # Same 3x3 stride-1 stem as ResNet18 above (CIFAR / Tiny-ImageNet style)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3,
+                               stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        # ResNet50 uses [3, 4, 6, 3] bottleneck blocks per stage
+        self.layer1 = self.make_block(mid_channels=64,  num_blocks=3, stride=1)
+        self.layer2 = self.make_block(mid_channels=128, num_blocks=4, stride=2)
+        self.layer3 = self.make_block(mid_channels=256, num_blocks=6, stride=2)
+        self.layer4 = self.make_block(mid_channels=512, num_blocks=3, stride=2)
+        # Final stage outputs 512 * 4 = 2048 channels
+        self.linear = nn.Linear(512 * BottleneckBlock.expansion, num_classes)
+
+    def make_block(self, mid_channels, num_blocks, stride):
+        layers = []
+        # Only the first block of each stage downsamples
+        for s in [stride] + [1] * (num_blocks - 1):
+            layers.append(BottleneckBlock(self.in_channels, mid_channels, s))
+            self.in_channels = mid_channels * BottleneckBlock.expansion
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
         x = self.layer1(x)
         x = self.layer2(x)
