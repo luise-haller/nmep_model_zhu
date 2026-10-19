@@ -72,11 +72,11 @@ def main(config):
     logger.info('number of params: {} M'.format(n_parameters / 1e6))
     logger.info(f'flops: {n_flops/1e6} MFLOPS')
     wandb.init(
-        entity="luiseh-university-of-california-berkeley",
+        entity="arjundesikan2008-na",
         project="nmep-hw3",
         name=os.path.relpath(config.OUTPUT, "output"),
-        config=yaml.safe_load(config.dump()),      
-        tags=[config.MODEL.NAME, config.DATA.DATASET],
+        config=yaml.safe_load(config.dump()),
+        tags=[config.MODEL.NAME, config.DATA.DATASET]
     )
     wandb.define_metric("val/acc", summary="max")
     wandb.define_metric("val/loss", summary="min")
@@ -89,6 +89,10 @@ def main(config):
     lr_scheduler = CosineAnnealingLR(optimizer, config.TRAIN.EPOCHS)
 
     max_accuracy = 0.0
+
+    if config.TRAIN.EARLY_STOPPING_PATIENCE:
+        patience = config.TRAIN.EARLY_STOPPING_PATIENCE
+        epochs_without_improvement = 0
 
     if config.MODEL.RESUME:
         max_accuracy = load_checkpoint(config, model, optimizer, lr_scheduler, logger)
@@ -113,8 +117,13 @@ def main(config):
         logger.info(f" * Val Acc {val_acc1:.3f} Val Loss {val_loss:.3f}")
         logger.info(f"Accuracy of the network on the {len(dataset_val)} val images: {val_acc1:.1f}%")
 
+        # implement early stopping? 
+        if val_acc1 <= max_accuracy and config.TRAIN.EARLY_STOPPING_PATIENCE:
+            epochs_without_improvement += 1
+
         if config.SAVE_CKPT and val_acc1 > max_accuracy:
             save_checkpoint(config, epoch, model, val_acc1, optimizer, lr_scheduler, logger)
+            epochs_without_improvement = 0
         
         max_accuracy = max(max_accuracy, val_acc1)
         logger.info(f"Max accuracy: {max_accuracy:.2f}%\n")
@@ -139,12 +148,19 @@ def main(config):
             "throughput_img_per_s": len(dataset_train) / epoch_time,
         }, step=epoch)
 
+        if config.TRAIN.EARLY_STOPPING_PATIENCE and epochs_without_improvement >= patience:
+            logger.info(f"EARLY STOPPING at Epoch {epoch}.")
+            break
+
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info("Training time {}".format(total_time_str))
     wandb.summary["total_train_time_s"] = total_time
 
     logger.info("Start testing")
+
+    # load the best model for evaluation
+    model.load_state_dict(torch.load(f"{config.OUTPUT}/{config.MODEL.NAME}/ckpt_best.pth", weights_only=True))
     preds = evaluate(config, data_loader_test, model)
     np.save(os.path.join(config.OUTPUT, "preds.npy"), preds)
     wandb.finish()

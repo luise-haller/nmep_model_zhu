@@ -63,6 +63,7 @@ base_config.TRAIN.LR = 5e-4
 base_config.TRAIN.MIN_LR = 5e-6
 base_config.TRAIN.WARMUP_LR = 5e-7
 base_config.TRAIN.WEIGHT_DECAY = 0.05
+base_config.TRAIN.EARLY_STOPPING_PATIENCE = 0
 
 # Gradient accumulation steps
 # could be overwritten by command line argument
