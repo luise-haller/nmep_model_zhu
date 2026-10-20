@@ -17,11 +17,13 @@ class MediumImagenetHDF5Dataset(Dataset):
         split: str = "train",
         filepath: str = "/data/nmep/cv/medium-imagenet-96.hdf5",
         augment: bool = True,
+        aug_scheme: str = "baseline",
     ):
         assert split in ["train", "val", "test"]
         self.split = split
         self.augment = augment
         self.input_size = img_size
+        self.aug_scheme = aug_scheme
         self.transform = self._get_transforms()
         self.file = h5py.File(filepath, "r")
 
@@ -39,26 +41,53 @@ class MediumImagenetHDF5Dataset(Dataset):
         return len(self.file[f"images-{self.split}"])
 
     def _get_transforms(self):
-        transform = []
-        transform.append(lambda x: torch.tensor(x / 256).to(torch.float))
-        if self.split == "train" and self.augment: # bug: need to augment before normalization
-            transform.extend(
-                [
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
-                ]
-            )
-        normalization = torch.Tensor([[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]])
-        transform.append(transforms.Normalize(normalization[0], normalization[1]))
-        transform.append(transforms.Resize([self.input_size] * 2))
-        # if self.split == "train" and self.augment:
+        to_tensor = lambda x: torch.tensor(x / 256).to(torch.float)
+        normalization = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        size = [self.input_size] * 2
+
+        # Val: no augmentation
+        if not (self.split == "train" and self.augment):
+            return transforms.Compose([to_tensor, normalization, transforms.Resize(size)])
+        
+        if self.aug_scheme == "baseline":
+            return transforms.Compose([
+                to_tensor,
+                transforms.RandomHorizontalFlip(),
+                transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
+                normalization,
+                transforms.Resize(size),
+            ])
+        elif self.aug_scheme == "strong":
+            return transforms.Compose([
+                to_tensor,
+                transforms.RandomResizedCrop(size, scale=(0.35, 1.0), antialias=True),  # also resizes to img_size
+                transforms.RandomHorizontalFlip(),
+                transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
+                normalization,
+                transforms.RandomErasing(p=0.25, scale=(0.02, 0.2)),
+            ])
+        else:
+            raise NotImplementedError(f"Unknown augmentation scheme: {self.aug_scheme}")
+        # transform = []
+        # transform.append(lambda x: torch.tensor(x / 256).to(torch.float))
+        # if self.split == "train" and self.augment: # bug: need to augment before normalization
         #     transform.extend(
         #         [
         #             transforms.RandomHorizontalFlip(),
         #             transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
         #         ]
         #     )
-        return transforms.Compose(transform)
+        # normalization = torch.Tensor([[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]])
+        # transform.append(transforms.Normalize(normalization[0], normalization[1]))
+        # transform.append(transforms.Resize([self.input_size] * 2))
+        # # if self.split == "train" and self.augment:
+        # #     transform.extend(
+        # #         [
+        # #             transforms.RandomHorizontalFlip(),
+        # #             transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
+        # #         ]
+        # #     )
+        # return transforms.Compose(transform)
 
 
 class CIFAR10Dataset(Dataset):

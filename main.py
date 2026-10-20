@@ -85,7 +85,7 @@ def main(config):
 
     # Keep it simple with basic epoch scheduler
     optimizer = build_optimizer(config, model)
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.CrossEntropyLoss(label_smoothing=config.TRAIN.LABEL_SMOOTHING)
     lr_scheduler = CosineAnnealingLR(optimizer, config.TRAIN.EPOCHS)
 
     max_accuracy = 0.0
